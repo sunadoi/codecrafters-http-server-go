@@ -39,6 +39,24 @@ func main() {
 			case strings.HasPrefix(path, "/echo"):
 				body := strings.Split(path, "/")[2]
 				writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), string(body)))
+			case strings.HasPrefix(path, "/files/"):
+				fileName := strings.Split(path, "/")[2]
+				dir := os.Args[2]
+				filePath := fmt.Sprintf("%s/%s", dir, fileName)
+				file, err := os.Open(filePath)
+				if err != nil {
+					if os.IsNotExist(err) {
+						writeResponse(conn, "HTTP/1.1 404 Not Found\r\n\r\n")
+					} else {
+						writeResponse(conn, "HTTP/1.1 500 Internal Server Error\r\n\r\n")
+					}
+				}
+				buf := make([]byte, 1024)
+				n, err := file.Read(buf)
+				if err != nil {
+					writeResponse(conn, "HTTP/1.1 500 Internal Server Error\r\n\r\n")
+				}
+				writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", n, string(buf)))
 			case path == "/user-agent":
 				ua := req.UserAgent()
 				writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(ua), ua))
