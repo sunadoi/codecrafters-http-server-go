@@ -21,6 +21,7 @@ func main() {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
 	}
+	defer conn.Close()
 
 	req := make([]byte, 1024)
 	if _, err := conn.Read(req); err != nil {
