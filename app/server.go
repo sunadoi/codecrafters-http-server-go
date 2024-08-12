@@ -34,20 +34,21 @@ func main() {
 	switch {
 	case strings.HasPrefix(path, "/echo"):
 		body := strings.Split(path, "/")[2]
-		res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), string(body))
-		if _, err := conn.Write([]byte(res)); err != nil {
-			fmt.Println("Error writing to connection: ", err.Error())
-			os.Exit(1)
-		}
+		writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), string(body)))
+	case path == "/user-agent":
+		uaHeader := strings.Split(string(req), "\r\n")[2]
+		ua := strings.Split(uaHeader, ": ")[1]
+		writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(ua), ua))
 	case path == "/":
-		if _, err := conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n")); err != nil {
-			fmt.Println("Error writing to connection: ", err.Error())
-			os.Exit(1)
-		}
+		writeResponse(conn, "HTTP/1.1 200 OK\r\n\r\n")
 	default:
-		if _, err := conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n")); err != nil {
-			fmt.Println("Error writing to connection: ", err.Error())
-			os.Exit(1)
-		}
+		writeResponse(conn, "HTTP/1.1 404 Not Found\r\n\r\n")
+	}
+}
+
+func writeResponse(conn net.Conn, res string) {
+	if _, err := conn.Write([]byte(res)); err != nil {
+		fmt.Println("Error writing to connection: ", err.Error())
+		os.Exit(1)
 	}
 }
