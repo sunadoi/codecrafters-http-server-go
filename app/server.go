@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net"
@@ -52,8 +54,20 @@ func main() {
 			switch {
 			case strings.HasPrefix(path, "/echo"):
 				body := strings.Split(path, "/")[2]
+				var b bytes.Buffer
+				gz := gzip.NewWriter(&b)
+				if _, err := gz.Write([]byte(body)); err != nil {
+					fmt.Println("gzip圧縮中にエラーが発生しました: ", err)
+					return
+				}
+				if err := gz.Close(); err != nil {
+					fmt.Println("gzip closeでエラーが発生しました: ", err)
+					return
+				}
+
 				if hasGzip {
-					writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: %d\r\n\r\n%s", len(body), string(body)))
+					body = b.String()
+					writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: %d\r\n\r\n%s", len(body), body))
 				} else {
 					writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), string(body)))
 				}
