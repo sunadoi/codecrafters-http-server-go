@@ -29,16 +29,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	if strings.HasPrefix(string(req), "GET / HTTP/1.1") {
+	path := strings.Split(string(req), " ")[1]
+
+	switch {
+	case strings.HasPrefix(path, "/echo"):
+		body := strings.Split(path, "/")[2]
+		res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), string(body))
+		if _, err := conn.Write([]byte(res)); err != nil {
+			fmt.Println("Error writing to connection: ", err.Error())
+			os.Exit(1)
+		}
+	case path == "/":
 		if _, err := conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n")); err != nil {
 			fmt.Println("Error writing to connection: ", err.Error())
 			os.Exit(1)
 		}
-		return
-	}
-
-	if _, err := conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n")); err != nil {
-		fmt.Println("Error writing to connection: ", err.Error())
-		os.Exit(1)
+	default:
+		if _, err := conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n")); err != nil {
+			fmt.Println("Error writing to connection: ", err.Error())
+			os.Exit(1)
+		}
 	}
 }
