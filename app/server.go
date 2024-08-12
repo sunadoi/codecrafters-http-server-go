@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 )
@@ -16,33 +18,36 @@ func main() {
 		os.Exit(1)
 	}
 
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
-	defer conn.Close()
+	for {
+		go func() {
+			conn, err := l.Accept()
+			if err != nil {
+				fmt.Println("Error accepting connection: ", err.Error())
+				os.Exit(1)
+			}
+			defer conn.Close()
 
-	req := make([]byte, 1024)
-	if _, err := conn.Read(req); err != nil {
-		fmt.Println("Error reading from connection: ", err.Error())
-		os.Exit(1)
-	}
+			req, err := http.ReadRequest(bufio.NewReader(conn))
+			if err != nil {
+				fmt.Println("Error reading request. ", err.Error())
+				return
+			}
 
-	path := strings.Split(string(req), " ")[1]
+			path := req.URL.Path
 
-	switch {
-	case strings.HasPrefix(path, "/echo"):
-		body := strings.Split(path, "/")[2]
-		writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), string(body)))
-	case path == "/user-agent":
-		uaHeader := strings.Split(string(req), "\r\n")[2]
-		ua := strings.Split(uaHeader, ": ")[1]
-		writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(ua), ua))
-	case path == "/":
-		writeResponse(conn, "HTTP/1.1 200 OK\r\n\r\n")
-	default:
-		writeResponse(conn, "HTTP/1.1 404 Not Found\r\n\r\n")
+			switch {
+			case strings.HasPrefix(path, "/echo"):
+				body := strings.Split(path, "/")[2]
+				writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), string(body)))
+			case path == "/user-agent":
+				ua := req.UserAgent()
+				writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(ua), ua))
+			case path == "/":
+				writeResponse(conn, "HTTP/1.1 200 OK\r\n\r\n")
+			default:
+				writeResponse(conn, "HTTP/1.1 404 Not Found\r\n\r\n")
+			}
+		}()
 	}
 }
 
