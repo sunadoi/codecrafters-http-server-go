@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -34,12 +35,29 @@ func main() {
 			}
 
 			path := req.URL.Path
+			method := req.Method
+			headers := req.Header
+			hasGzip := false
+			for k, v := range headers {
+				if k != "Accept-Encoding" {
+					continue
+				}
+				for _, encoding := range v {
+					if encoding == "gzip" {
+						hasGzip = true
+					}
+				}
+			}
 
 			switch {
 			case strings.HasPrefix(path, "/echo"):
 				body := strings.Split(path, "/")[2]
-				writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), string(body)))
-			case strings.HasPrefix(path, "/files/"):
+				if hasGzip {
+					writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: %d\r\n\r\n%s", len(body), string(body)))
+				} else {
+					writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), string(body)))
+				}
+			case method == "GET" && strings.HasPrefix(path, "/files/"):
 				fileName := strings.Split(path, "/")[2]
 				dir := os.Args[2]
 				filePath := fmt.Sprintf("%s/%s", dir, fileName)
@@ -51,15 +69,40 @@ func main() {
 						writeResponse(conn, "HTTP/1.1 500 Internal Server Error\r\n\r\n")
 					}
 				}
+				defer file.Close()
+
 				buf := make([]byte, 1024)
 				n, err := file.Read(buf)
 				if err != nil {
 					writeResponse(conn, "HTTP/1.1 500 Internal Server Error\r\n\r\n")
 				}
-				writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", n, string(buf)))
+				if hasGzip {
+					writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Encoding: gzip\r\nContent-Length: %d\r\n\r\n%s", n, string(buf)))
+				} else {
+					writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", n, string(buf)))
+				}
+			case method == "POST" && strings.HasPrefix(path, "/files/"):
+				fileName := strings.Split(path, "/")[2]
+				dir := os.Args[2]
+				filePath := fmt.Sprintf("%s/%s", dir, fileName)
+				file, err := os.Create(filePath)
+				if err != nil {
+					writeResponse(conn, "HTTP/1.1 500 Internal Server Error1\r\n\r\n")
+				}
+				defer file.Close()
+
+				_, err = io.Copy(file, req.Body)
+				if err != nil {
+					writeResponse(conn, "HTTP/1.1 500 Internal Server Error2\r\n\r\n")
+				}
+				writeResponse(conn, "HTTP/1.1 201 Created\r\n\r\n")
 			case path == "/user-agent":
 				ua := req.UserAgent()
-				writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(ua), ua))
+				if hasGzip {
+					writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: %d\r\n\r\n%s", len(ua), ua))
+				} else {
+					writeResponse(conn, fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(ua), ua))
+				}
 			case path == "/":
 				writeResponse(conn, "HTTP/1.1 200 OK\r\n\r\n")
 			default:
