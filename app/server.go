@@ -43,7 +43,7 @@ func main() {
 					continue
 				}
 				for _, encoding := range v {
-					if encoding == "gzip" {
+					if strings.Contains(encoding, "gzip") {
 						hasGzip = true
 					}
 				}
